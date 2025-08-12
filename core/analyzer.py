@@ -2,7 +2,7 @@ import os
 
 class ContextAnalyzer:
     """
-    Scans and analyzes a given project directory to understand its structure.
+    Scans and analyzes a given project directory to identify key components like models and controllers.
     """
     def __init__(self, project_path):
         self.project_path = project_path
@@ -10,57 +10,35 @@ class ContextAnalyzer:
 
     def analyze(self):
         """
-        Performs the analysis of the project directory.
-        Returns a dictionary containing the analysis report.
+        Performs a deep analysis to find C# models and controllers by filename.
         """
         if not os.path.isdir(self.project_path):
             self.analysis_report = {"error": "The provided path is not a valid directory."}
             return self.analysis_report
 
-        file_count = 0
-        dir_count = 0
-        file_types = {}
+        models_path = os.path.join(self.project_path, "Models")
+        controllers_path = os.path.join(self.project_path, "Controllers")
 
-        for root, dirs, files in os.walk(self.project_path):
-            dir_count += len(dirs)
-            file_count += len(files)
-            for file in files:
-                extension = os.path.splitext(file)[1]
-                if extension:
-                    file_types[extension] = file_types.get(extension, 0) + 1
-        
+        found_models = self._find_classes_in_dir(models_path, ".cs")
+        # For controllers, we strip the 'Controller' suffix to match them to models
+        found_controllers = [name.replace("Controller", "") for name in self._find_classes_in_dir(controllers_path, "Controller.cs")]
+
         self.analysis_report = {
-            "total_directories": dir_count,
-            "total_files": file_count,
-            "file_type_counts": file_types
+            "models": found_models,
+            "controllers": found_controllers
         }
         return self.analysis_report
 
-    def get_report_as_text(self):
-        """
-        Formats the analysis report into a human-readable text block.
-        """
-        if "error" in self.analysis_report:
-            return self.analysis_report["error"]
-
-        if not self.analysis_report:
-            return "No analysis has been run yet."
-
-        report_lines = [
-            "--- Project Analysis Summary ---",
-            f"Total Directories: {self.analysis_report.get('total_directories', 0)}",
-            f"Total Files: {self.analysis_report.get('total_files', 0)}",
-            "\nFile Type Distribution:"
-        ]
+    def _find_classes_in_dir(self, directory, suffix):
+        """Helper function to find files with a specific suffix and extract a class name."""
+        if not os.path.isdir(directory):
+            return []
         
-        # Sort file types by count for cleaner presentation
-        sorted_file_types = sorted(
-            self.analysis_report.get('file_type_counts', {}).items(),
-            key=lambda item: item[1],
-            reverse=True
-        )
-
-        for ext, count in sorted_file_types:
-            report_lines.append(f"  - {ext}: {count}")
-        
-        return "\n".join(report_lines)
+        class_names = []
+        for filename in os.listdir(directory):
+            if filename.endswith(suffix):
+                # 'Product.cs' -> 'Product'
+                # 'ProductsController.cs' -> 'Products'
+                class_name = filename.replace(suffix, "")
+                class_names.append(class_name)
+        return class_names

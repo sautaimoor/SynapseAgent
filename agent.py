@@ -1,8 +1,8 @@
 import json
+import os
 from connectors.factory import get_provider
 from core.analyzer import ContextAnalyzer
 from core.file_manager import FileManager
-import os # We need os for path joining
 
 # --- Configuration Loader (no changes) ---
 def load_config():
@@ -14,9 +14,8 @@ def load_config():
     except json.JSONDecodeError:
         return {"error": "config.json is not formatted correctly."}
 
-# --- New Function to Handle Model Creation ---
+# --- Function to Handle Model Creation (no changes) ---
 def handle_create_model(ai_provider, project_path):
-    """Orchestrates the process of creating a new C# model."""
     print("\n--- Create New C# Model ---")
     if not os.path.isdir(project_path):
         print(f"❌ Error: Project path '{project_path}' does not exist.")
@@ -25,34 +24,22 @@ def handle_create_model(ai_provider, project_path):
     model_name = input("Enter the model name (e.g., Product, User):\n> ").strip().capitalize()
     properties = input("Enter the properties as a comma-separated list (e.g., string Name, decimal Price, int StockLevel):\n> ")
     
-    # Guess the namespace from the project folder name
     project_name = os.path.basename(project_path)
     namespace = f"{project_name}.Models"
 
-    # Engineer the prompt for the AI
     prompt = f"""
     You are an expert C# ASP.NET Core developer. Your task is to generate a C# model class file.
-    
-    Namespace: {namespace}
-    Model Name: {model_name}
-    Properties: {properties}
-
+    Namespace: {namespace}, Model Name: {model_name}, Properties: {properties}
     Instructions:
-    1. Generate a public class for the model.
-    2. Include a public integer property named 'Id' as the primary key.
-    3. Add the properties as specified by the user.
-    4. Use appropriate data types.
-    5. Add necessary 'using' statements (e.g., System.ComponentModel.DataAnnotations).
-    6. Do NOT include any other text, explanation, or markdown formatting. Only return the raw C# code.
+    1. Generate a public class for the model. Include a public integer property named 'Id'.
+    2. Add the specified properties. Use appropriate data types and data annotations.
+    3. Only return the raw C# code without any extra text or markdown.
     """
     
     print("\n✅ Prompt engineered. Generating C# code with the AI...")
     generated_code = ai_provider.generate_text(prompt).strip()
     
-    # --- Human-in-the-Loop Verification ---
-    print("\n--- 🤖 Generated C# Code ---")
-    print(generated_code)
-    print("-----------------------------\n")
+    print("\n--- 🤖 Generated C# Code ---\n" + generated_code + "\n-----------------------------\n")
     
     confirm = input("Do you want to save this file? [y/n]: ").lower()
     
@@ -63,8 +50,53 @@ def handle_create_model(ai_provider, project_path):
     else:
         print("❌ Aborted. File not saved.")
 
+# --- NEW Function for General Analysis ---
+def handle_general_analysis(ai_provider, project_path):
+    """Orchestrates the general project analysis and reports the status."""
+    print("\n🔍 Running general analysis...")
+    analyzer = ContextAnalyzer(project_path)
+    report = analyzer.analyze()
 
-# --- Refactored Main Function with Command Loop ---
+    if "error" in report:
+        print(f"❌ Analysis failed: {report['error']}")
+        return
+
+    # Logic to determine what's done vs. remaining
+    done_items = []
+    remaining_items = []
+    for model in report["models"]:
+        # A model is 'done' if a controller with the pluralized name exists
+        # This is a simplification; a real check would be more complex
+        if model in report["controllers"]:
+            done_items.append(f"Model '{model}' has a matching Controller.")
+        else:
+            remaining_items.append(f"Model '{model}' is missing a corresponding Controller.")
+    
+    if not done_items and not remaining_items:
+        print("ℹ️ No models found to analyze. Try creating a model first.")
+        return
+
+    # Engineer the prompt for the AI
+    prompt = f"""
+    You are an expert ASP.NET project manager. Based on the following status report, provide a short, user-friendly summary for the developer. 
+    Highlight what is complete and what the most logical next step is.
+
+    STATUS REPORT:
+    - Completed Items: {', '.join(done_items) if done_items else 'None'}
+    - Missing Items: {', '.join(remaining_items) if remaining_items else 'None'}
+
+    YOUR SUMMARY:
+    """
+
+    print("✅ Analysis logic complete. Generating summary with the AI...")
+    ai_summary = ai_provider.generate_text(prompt)
+    
+    print("\n--- 🤖 AI Project Analysis ---")
+    print(ai_summary)
+    print("-----------------------------\n")
+
+
+# --- Main Function with Updated Menu ---
 def main():
     print("🚀 Welcome to Project Synapse!")
     
@@ -83,15 +115,14 @@ def main():
     while True:
         print("\n--- Synapse Menu ---")
         print("[1] Create a new C# Model")
-        print("[2] Analyze Project (coming soon)")
+        print("[2] Run General Project Analysis")
         print("[q] Quit")
         choice = input("> ").lower()
 
         if choice == '1':
             handle_create_model(ai_provider, project_path)
         elif choice == '2':
-            print("Feature coming soon!")
-            # TODO: Add call to analyzer here
+            handle_general_analysis(ai_provider, project_path)
         elif choice == 'q':
             print("👋 Goodbye!")
             break
