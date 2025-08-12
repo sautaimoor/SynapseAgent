@@ -50,9 +50,8 @@ def handle_create_model(ai_provider, project_path):
     else:
         print("❌ Aborted. File not saved.")
 
-# --- NEW Function for General Analysis ---
+# --- Function for General Analysis (no changes) ---
 def handle_general_analysis(ai_provider, project_path):
-    """Orchestrates the general project analysis and reports the status."""
     print("\n🔍 Running general analysis...")
     analyzer = ContextAnalyzer(project_path)
     report = analyzer.analyze()
@@ -61,12 +60,9 @@ def handle_general_analysis(ai_provider, project_path):
         print(f"❌ Analysis failed: {report['error']}")
         return
 
-    # Logic to determine what's done vs. remaining
     done_items = []
     remaining_items = []
     for model in report["models"]:
-        # A model is 'done' if a controller with the pluralized name exists
-        # This is a simplification; a real check would be more complex
         if model in report["controllers"]:
             done_items.append(f"Model '{model}' has a matching Controller.")
         else:
@@ -76,7 +72,6 @@ def handle_general_analysis(ai_provider, project_path):
         print("ℹ️ No models found to analyze. Try creating a model first.")
         return
 
-    # Engineer the prompt for the AI
     prompt = f"""
     You are an expert ASP.NET project manager. Based on the following status report, provide a short, user-friendly summary for the developer. 
     Highlight what is complete and what the most logical next step is.
@@ -91,12 +86,57 @@ def handle_general_analysis(ai_provider, project_path):
     print("✅ Analysis logic complete. Generating summary with the AI...")
     ai_summary = ai_provider.generate_text(prompt)
     
-    print("\n--- 🤖 AI Project Analysis ---")
-    print(ai_summary)
-    print("-----------------------------\n")
+    print("\n--- 🤖 AI Project Analysis ---\n" + ai_summary + "\n-----------------------------\n")
+
+# --- NEW Function for Controller Creation ---
+def handle_create_controller(ai_provider, project_path):
+    """Orchestrates the process of creating a new C# controller."""
+    print("\n--- Create New C# Controller ---")
+    if not os.path.isdir(project_path):
+        print(f"❌ Error: Project path '{project_path}' does not exist.")
+        return
+
+    model_name = input("Enter the name of the Model to create a controller for (e.g., Product):\n> ").strip().capitalize()
+    context_name = input("Enter the name of your DbContext class (e.g., ApplicationDbContext):\n> ").strip()
+
+    project_name = os.path.basename(project_path)
+    controller_name = f"{model_name}sController" # Pluralize for convention
+
+    prompt = f"""
+    You are an expert C# ASP.NET Core MVC developer. Your task is to generate a complete C# controller file with full CRUD functionality.
+
+    Project Namespace: {project_name}
+    Model Name: {model_name}
+    DbContext Name: {context_name}
+    Controller Name: {controller_name}
+
+    Instructions:
+    1. Create a public class named {controller_name} that inherits from 'Controller'.
+    2. Add necessary 'using' statements for MVC, EntityFrameworkCore, and the project's Models namespace.
+    3. Implement a constructor with dependency injection for the {context_name}.
+    4. Generate standard async CRUD action methods: Index, Details, Create (GET and POST), Edit (GET and POST), Delete (GET and POST/DeleteConfirmed).
+    5. The Index action should retrieve and display a list of all {model_name} objects.
+    6. The POST actions should include the [HttpPost] and [ValidateAntiForgeryToken] attributes.
+    7. Ensure all actions that take an 'id' parameter handle the case where the id is null or the object is not found.
+    8. Only return the raw C# code without any extra text or markdown formatting.
+    """
+
+    print("\n✅ Prompt engineered. Generating C# controller code with the AI...")
+    generated_code = ai_provider.generate_text(prompt).strip()
+
+    print("\n--- 🤖 Generated C# Code ---\n" + generated_code + "\n-----------------------------\n")
+
+    confirm = input("Do you want to save this file? [y/n]: ").lower()
+
+    if confirm == 'y':
+        file_manager = FileManager()
+        file_path = os.path.join(project_path, "Controllers", f"{controller_name}.cs")
+        file_manager.create_file(file_path, generated_code)
+    else:
+        print("❌ Aborted. File not saved.")
 
 
-# --- Main Function with Updated Menu ---
+# --- Main Function with Final Menu ---
 def main():
     print("🚀 Welcome to Project Synapse!")
     
@@ -115,13 +155,16 @@ def main():
     while True:
         print("\n--- Synapse Menu ---")
         print("[1] Create a new C# Model")
-        print("[2] Run General Project Analysis")
+        print("[2] Create a new C# Controller")
+        print("[3] Run General Project Analysis")
         print("[q] Quit")
         choice = input("> ").lower()
 
         if choice == '1':
             handle_create_model(ai_provider, project_path)
         elif choice == '2':
+            handle_create_controller(ai_provider, project_path)
+        elif choice == '3':
             handle_general_analysis(ai_provider, project_path)
         elif choice == 'q':
             print("👋 Goodbye!")
